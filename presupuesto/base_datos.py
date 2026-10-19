@@ -13,14 +13,13 @@ def conectar():
 def crear_tabla():
     with conectar() as con:
         con.execute("""
-            CREATE TABLE IF NOT EXISTS movimientos (
+            CREATE TABLE IF NOT EXISTS prestamos (
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,
                 fecha       TEXT NOT NULL,      -- formato AAAA-MM-DD
-                descripcion TEXT NOT NULL,
-                categoria   TEXT NOT NULL,
-                metodo      TEXT NOT NULL,
-                tipo        TEXT NOT NULL,      -- 'Gasto' o 'Ingreso'
-                monto       REAL NOT NULL       -- siempre positivo
+                persona     TEXT NOT NULL,
+                descripcion TEXT,
+                monto       REAL NOT NULL,      -- lo que prestaste
+                pagado      REAL NOT NULL DEFAULT 0   -- lo que te han abonado
             )
         """)
         con.execute("""
@@ -45,6 +44,7 @@ def cargar_ejemplos():
         ("Cancha y cerveza",      50000),
         ("Caja café",            111000),
         ("Disney+",               10000),
+        ("prestamos",             50000),
     ]
     with conectar() as con:
         if con.execute("SELECT COUNT(*) FROM presupuesto").fetchone()[0] == 0:
@@ -215,3 +215,34 @@ def gastos_categoria_calendario(mes):
     return (d.groupby("categoria", as_index=False)["monto"].sum()
               .rename(columns={"monto": "total"})
               .sort_values("total", ascending=False))
+    # ---------- PRÉSTAMOS (cuando yo presto plata) ----------
+def insertar_prestamo(fecha, persona, descripcion, monto):
+    with conectar() as con:
+        con.execute(
+            """INSERT INTO prestamos (fecha, persona, descripcion, monto)
+               VALUES (?, ?, ?, ?)""",
+            (fecha, persona, descripcion, monto),
+        )
+
+
+def listar_prestamos():
+    with conectar() as con:
+        return pd.read_sql(
+            """SELECT *, (monto - pagado) AS pendiente
+               FROM prestamos ORDER BY fecha DESC, id DESC""",
+            con,
+        )
+
+
+def registrar_abono(id_, abono):
+    """Suma un abono sin pasarse del monto prestado."""
+    with conectar() as con:
+        con.execute(
+            "UPDATE prestamos SET pagado = MIN(monto, pagado + ?) WHERE id = ?",
+            (abono, id_),
+        )
+
+
+def eliminar_prestamo(id_):
+    with conectar() as con:
+        con.execute("DELETE FROM prestamos WHERE id = ?", (id_,))

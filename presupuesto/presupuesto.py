@@ -9,7 +9,8 @@ from base_datos import (crear_tabla, cargar_ejemplos, meses_disponibles,
                         actualizar_movimiento, eliminar_movimiento,
                         guardar_presupuesto, listar_presupuesto,
                         movimientos_del_mes, historial, periodo,
-                        movimientos_calendario, gastos_categoria_calendario)
+                        movimientos_calendario, gastos_categoria_calendario, insertar_prestamo, listar_prestamos,
+                        registrar_abono, eliminar_prestamo,)
 
 # ---------- 1. CONFIGURACIÓN ----------
 st.set_page_config(
@@ -234,7 +235,67 @@ def mostrar_movimientos(mes):
                 guardar_presupuesto(nombre.strip(), valor)
                 st.session_state["mensaje"] = f"🎯 Presupuesto guardado: {nombre.strip()}"
                 st.rerun()
+        # ----- D. PRÉSTAMOS (cuando yo presto plata) -----
+    st.write("")
+    with st.container(border=True):
+        st.markdown("#### 🤝 Préstamos (lo que me deben)")
 
+        with st.form("form_prestamo", clear_on_submit=True):
+            p1, p2 = st.columns(2)
+            p_fecha = p1.date_input("Fecha", value=date.today(), format="DD/MM/YYYY",
+                                    key="p_fecha")
+            p_monto = p2.number_input("Monto prestado", min_value=0, value=0, step=10000,
+                                      key="p_monto")
+            p_persona = p1.text_input("¿A quién le prestaste?", key="p_persona")
+            p_desc = p2.text_input("Nota (opcional)", key="p_desc")
+            guardar_prestamo = st.form_submit_button("Guardar préstamo")
+
+        if guardar_prestamo:
+            if not p_persona.strip():
+                st.error("Escribe a quién le prestaste.")
+            elif p_monto <= 0:
+                st.error("El monto debe ser mayor que 0.")
+            else:
+                insertar_prestamo(p_fecha.isoformat(), p_persona.strip(),
+                                  p_desc.strip(), p_monto)
+                st.session_state["mensaje"] = (
+                    f"🤝 Préstamo guardado: {p_persona.strip()} ({formato(p_monto)})")
+                st.rerun()
+
+        prest = listar_prestamos()
+        if prest.empty:
+            st.info("Todavía no has registrado préstamos.")
+        else:
+            st.metric("Total que te deben", formato(prest["pendiente"].sum()))
+
+            vista_p = prest.assign(
+                monto=prest["monto"].map(formato),
+                pagado=prest["pagado"].map(formato),
+                pendiente=prest["pendiente"].map(formato),
+                estado=prest["pendiente"].map(lambda x: "✅ Pagado" if x <= 0 else "⏳ Debe"),
+            )[["fecha", "persona", "descripcion", "monto", "pagado", "pendiente", "estado"]]
+            st.dataframe(vista_p, hide_index=True)
+
+            etiquetas_p = {
+                int(r["id"]): f"{r['persona']} · {formato(r['monto'])} · debe {formato(r['pendiente'])}"
+                for _, r in prest.iterrows()
+            }
+            id_p = st.selectbox("Elige un préstamo", list(etiquetas_p),
+                                format_func=lambda i: etiquetas_p[i], key="p_sel")
+            a1, a2, a3 = st.columns([2, 1, 1])
+            abono = a1.number_input("Abono recibido", min_value=0, step=10000,
+                                    value=0, key=f"p_abono_{id_p}")
+            if a2.button("Registrar abono", key="btn_abono"):
+                if abono <= 0:
+                    st.error("El abono debe ser mayor que 0.")
+                else:
+                    registrar_abono(int(id_p), abono)
+                    st.session_state["mensaje"] = f"💵 Abono registrado: {formato(abono)}"
+                    st.rerun()
+            if a3.button("Eliminar", key="btn_del_prestamo"):
+                eliminar_prestamo(int(id_p))
+                st.session_state["mensaje"] = "🗑️ Préstamo eliminado"
+                st.rerun()
 
 def mostrar_historial():
     st.markdown("### 📚 Historial")
