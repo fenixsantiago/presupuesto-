@@ -13,6 +13,23 @@ def conectar():
 def crear_tabla():
     with conectar() as con:
         con.execute("""
+            CREATE TABLE IF NOT EXISTS movimientos (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                fecha       TEXT NOT NULL,
+                descripcion TEXT NOT NULL,
+                categoria   TEXT NOT NULL,
+                metodo      TEXT NOT NULL,
+                tipo        TEXT NOT NULL,
+                monto       REAL NOT NULL
+            )
+        """)
+        con.execute("""
+            CREATE TABLE IF NOT EXISTS presupuesto (
+                categoria TEXT PRIMARY KEY,
+                valor     REAL NOT NULL
+            )
+        """)
+        con.execute("""
             CREATE TABLE IF NOT EXISTS prestamos (
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,
                 fecha       TEXT NOT NULL,
@@ -22,13 +39,6 @@ def crear_tabla():
                 pagado      REAL NOT NULL DEFAULT 0
             )
         """)
-        con.execute("""
-            CREATE TABLE IF NOT EXISTS presupuesto (
-                categoria TEXT PRIMARY KEY,
-                valor     REAL NOT NULL         -- presupuesto del mes
-            )
-        """)
-
 
 def cargar_ejemplos():
     """Carga SOLO las categorías de tu Excel, y solo si el presupuesto está vacío.
