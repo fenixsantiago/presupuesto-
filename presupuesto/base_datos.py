@@ -1,8 +1,11 @@
 import sqlite3
+from pathlib import Path
 from datetime import date
 import pandas as pd
 
-DB = "movimientos.db"   # SQLite creará este archivo solo
+# El archivo de datos queda siempre junto a este archivo, sin importar
+# desde qué carpeta ejecutes la app.
+DB = str(Path(__file__).parent / "movimientos.db")
 
 
 def conectar():
@@ -40,9 +43,9 @@ def crear_tabla():
             )
         """)
 
+
 def cargar_ejemplos():
-    """Carga SOLO las categorías de tu Excel, y solo si el presupuesto está vacío.
-    Ya no carga movimientos de ejemplo: empiezas en cero."""
+    """Carga las categorías de tu Excel, solo si el presupuesto está vacío."""
     presupuesto = [
         ("Pasajes Transmilenio", 213000),
         ("Pasajes de bus",       144000),
@@ -225,37 +228,8 @@ def gastos_categoria_calendario(mes):
     return (d.groupby("categoria", as_index=False)["monto"].sum()
               .rename(columns={"monto": "total"})
               .sort_values("total", ascending=False))
-    # ---------- PRÉSTAMOS (cuando yo presto plata) ----------
-def insertar_prestamo(fecha, persona, descripcion, monto):
-    with conectar() as con:
-        con.execute(
-            """INSERT INTO prestamos (fecha, persona, descripcion, monto)
-               VALUES (?, ?, ?, ?)""",
-            (fecha, persona, descripcion, monto),
-        )
 
 
-def listar_prestamos():
-    with conectar() as con:
-        return pd.read_sql(
-            """SELECT *, (monto - pagado) AS pendiente
-               FROM prestamos ORDER BY fecha DESC, id DESC""",
-            con,
-        )
-
-
-def registrar_abono(id_, abono):
-    """Suma un abono sin pasarse del monto prestado."""
-    with conectar() as con:
-        con.execute(
-            "UPDATE prestamos SET pagado = MIN(monto, pagado + ?) WHERE id = ?",
-            (abono, id_),
-        )
-
-
-def eliminar_prestamo(id_):
-    with conectar() as con:
-        con.execute("DELETE FROM prestamos WHERE id = ?", (id_,))
 # ---------- PRÉSTAMOS (cuando yo presto plata) ----------
 def insertar_prestamo(fecha, persona, descripcion, monto):
     with conectar() as con:
